@@ -24,7 +24,12 @@
  #include "WProgram.h"
 #endif
 
-#include <Wire.h>
+#ifdef __AVR_ATtiny85__
+ #include <TinyWireM.h>
+ #define Wire TinyWireM
+#else
+ #include <Wire.h>
+#endif
 
 #include "Adafruit_MPL3115A2.h"
 
@@ -45,12 +50,11 @@ Adafruit_MPL3115A2::Adafruit_MPL3115A2() {
 boolean Adafruit_MPL3115A2::begin() {
   Wire.begin();
   uint8_t whoami = read8(MPL3115A2_WHOAMI);
-  Serial.println(whoami, HEX);
   if (whoami != 0xC4) {
     return false;
   }
 
-  write8(MPL3115A2_CTRL_REG1, 
+  write8(MPL3115A2_CTRL_REG1,
 	 MPL3115A2_CTRL_REG1_SBYB |
 	 MPL3115A2_CTRL_REG1_OS128 |
 	 MPL3115A2_CTRL_REG1_ALT);
@@ -97,7 +101,7 @@ float Adafruit_MPL3115A2::getPressure() {
 }
 
 float Adafruit_MPL3115A2::getAltitude() {
-  uint32_t alt;
+  int32_t alt;
 
   write8(MPL3115A2_CTRL_REG1, 
 	 MPL3115A2_CTRL_REG1_SBYB |
@@ -121,6 +125,10 @@ float Adafruit_MPL3115A2::getAltitude() {
   alt |= Wire.read(); // receive DATA
   alt >>= 4;
 
+  if (alt & 0x80000) {
+    alt |= 0xFFF00000;
+  }
+
   float altitude = alt;
   altitude /= 16.0;
   return altitude;
@@ -132,7 +140,7 @@ float Adafruit_MPL3115A2::getAltitude() {
 */
 /**************************************************************************/
 float Adafruit_MPL3115A2::getTemperature() {
-  uint16_t t;
+  int16_t t;
 
   uint8_t sta = 0;
   while (! (sta & MPL3115A2_REGISTER_STATUS_TDR)) {
@@ -169,8 +177,6 @@ uint8_t Adafruit_MPL3115A2::read8(uint8_t a) {
 }
 
 void Adafruit_MPL3115A2::write8(uint8_t a, uint8_t d) {
-  Serial.print("Writing $"); Serial.print(a, HEX); 
-  Serial.print(" = 0x"); Serial.println(d, HEX);
   Wire.beginTransmission(MPL3115A2_ADDRESS); // start transmission to device 
   Wire.write(a); // sends register address to write to
   Wire.write(d); // sends register data
